@@ -24,7 +24,8 @@ const Player =
 {
     ...hasRandom, // <--- new!
     getHand: Fun([], UInt),
-    seeOutcome: Fun([UInt], Null)
+    seeOutcome: Fun([UInt], Null),
+    informTimeout: Fun([], Null)
 };
 
 const Alice =
@@ -38,12 +39,19 @@ const Bob =
     acceptWager: Fun([UInt], Null)
 };
 
+const DEADLINE = 10;
 
 export const main =
     Reach.App(
         {},
         [Participant('Alice', Alice), Participant('Bob', Bob)],
         (A, B) => {
+
+            const informTimeout = () => {
+                each([A, B], () => {
+                    interact.informTimeout();
+                });
+            };
 
             A.only(() => {
                 const _handA = interact.getHand();
@@ -60,14 +68,17 @@ export const main =
                 const handB = declassify(interact.getHand());
             });
             B.publish(handB)
-                .pay(wager);
+                .pay(wager)
+                .timeout(DEADLINE, () => closeTo(A, informTimeout));
             commit();
             A.only(() => {
                 const [saltA, handA] = declassify([_saltA, _handA]);
             });
-            A.publish(saltA, handA);
+            A.publish(saltA, handA)
+                .timeout(DEADLINE, () => closeTo(B, informTimeout));
+                
             checkCommitment(commitA, saltA, handA);
-            
+
             const outcome = winner(handA, handB);
             const [forA, forB] =
                 outcome == A_WINS ? [2, 0] :
